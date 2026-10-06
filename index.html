@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DreamSaver - TabunganKu</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0ea5e9">
+    <meta name="mobile-web-app-capable" content="yes">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Chart.js untuk Grafik Real-time -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Firebase JS SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class', 
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['"Plus Jakarta Sans"', 'sans-serif'] },
+                    colors: { brand: { 400: '#38bdf8', 500: '#0ea5e9', 600: '#0284c7' } }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { transition: background-color 0.3s ease, color 0.3s ease; }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+        }
+        .dark .glass-card {
+            background: linear-gradient(145deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.4) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+        }
+        .blur-amount { filter: blur(6px); opacity: 0.7; user-select: none; }
+        
+        .swal2-input.custom-swal-input {
+            background: rgba(15, 23, 42, 0.8) !important;
+            border: 1px solid #334155 !important;
+            color: white !important;
+            border-radius: 12px !important;
+        }
+        .swal2-input.custom-swal-input:focus { border-color: #0ea5e9 !important; box-shadow: none !important; }
+        .swal2-loader { border-color: #0ea5e9 transparent #0ea5e9 transparent !important; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-[#0f172a] dark:text-slate-200 min-h-screen antialiased relative">
+    
+    <div class="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-lg h-96 bg-brand-500/10 blur-[100px] rounded-full pointer-events-none z-[-1]"></div>
+
+    <!-- HALAMAN LOGIN -->
+    <div id="auth-screen" class="fixed inset-0 z-[100] hidden flex-col items-center justify-center p-6 bg-slate-50 dark:bg-[#0f172a] transition-all">
+        <div class="glass-card w-full max-w-sm rounded-3xl p-8 text-center">
+            <div class="w-16 h-16 bg-brand-500/10 text-brand-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <i class="ph-fill ph-lock-key text-3xl"></i>
+            </div>
+            <h2 class="text-2xl font-extrabold text-slate-900 dark:text-white mb-2">Akses Terkunci</h2>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">Silakan masuk untuk akses tabungan.</p>
+            
+            <form id="login-form" class="space-y-4 text-left">
+                <div>
+                    <label class="text-xs font-bold text-slate-500 dark:text-slate-400 ml-1">Email</label>
+                    <input type="email" id="login-email" required class="w-full mt-1 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white text-sm focus:outline-none focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-500 dark:text-slate-400 ml-1">Password</label>
+                    <input type="password" id="login-pass" required class="w-full mt-1 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white text-sm focus:outline-none focus:border-brand-500">
+                </div>
+                <button type="submit" class="w-full bg-brand-500 hover:bg-brand-400 text-white font-bold py-3.5 rounded-xl transition shadow-lg shadow-brand-500/30 mt-2">Masuk</button>
+            </form>
+            <button onclick="registerAccount()" class="mt-4 text-xs font-semibold text-slate-400 hover:text-brand-500 transition">Belum punya akun? Daftar disini</button>
+        </div>
+    </div>
+
+    <!-- HALAMAN DASHBOARD -->
+    <div id="dashboard-screen" class="hidden pb-12">
+        <nav class="sticky top-0 z-50 bg-white/80 dark:bg-[#0f172a]/80 backdrop-blur-xl border-b border-slate-200 dark:border-white/5">
+            <div class="max-w-md mx-auto px-5 py-4 flex justify-between items-center">
+                <h1 class="text-xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                    <i class="ph-fill ph-target text-brand-500 dark:text-brand-400"></i> DreamSaver
+                </h1>
+                <div class="flex items-center gap-3">
+                    <button onclick="toggleTheme()" class="text-slate-500 dark:text-slate-400 hover:text-brand-500 transition p-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg">
+                        <i id="theme-icon" class="ph-fill ph-moon text-lg"></i>
+                    </button>
+                    <button onclick="logout()" class="text-rose-500 bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1">
+                        <i class="ph-bold ph-sign-out"></i> Keluar
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <div class="max-w-md mx-auto px-4 mt-6 space-y-4">
+            
+            <!-- Target Utama Header -->
+            <div class="flex justify-between items-end px-1">
+                <div>
+                    <p class="text-[10px] font-bold text-brand-500 dark:text-brand-400 uppercase tracking-widest mb-1">Target Utama</p>
+                    <h2 id="target-title" class="text-lg font-bold text-slate-900 dark:text-white leading-tight">Memuat...</h2>
+                </div>
+                <button onclick="editTarget()" class="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition flex items-center gap-1 text-xs font-semibold bg-slate-200 dark:bg-white/5 px-2 py-1.5 rounded-lg">
+                    <i class="ph ph-gear"></i> Atur
+                </button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <!-- Box Saldo Rupiah -->
+                <div class="col-span-2 glass-card rounded-3xl p-5 relative overflow-hidden group">
+                    <div class="flex justify-between items-center mb-3">
+                        <p class="text-sm font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                            <i class="ph-fill ph-wallet text-brand-500 dark:text-brand-400 text-lg"></i> Uang Terkumpul
+                        </p>
+                        <button onclick="toggleVisibility()" class="text-slate-400 hover:text-slate-700 dark:hover:text-white transition">
+                            <i id="eye-icon" class="ph-fill ph-eye text-xl"></i>
+                        </button>
+                    </div>
+                    
+                    <p id="total-saved" class="text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight transition-all">Rp 0</p>
+                    
+                    <!-- Informasi Konversi Emas Realtime -->
+                    <div class="mt-3 mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex justify-between items-center">
+                        <div class="flex items-center gap-2">
+                            <i class="ph-fill ph-coins text-amber-500 text-lg"></i>
+                            <div>
+                                <p class="text-[10px] text-amber-600 dark:text-amber-400 font-bold uppercase">Setara Emas</p>
+                                <p class="text-[11px] text-slate-600 dark:text-slate-400">Harga Live: <span id="live-gold-price">Menghitung...</span></p>
+                            </div>
+                        </div>
+                        <p id="total-gold-gram" class="text-lg font-extrabold text-amber-600 dark:text-amber-400">0.00 g</p>
+                    </div>
+                    
+                    <div class="space-y-1.5 relative z-10">
+                        <div class="flex justify-between text-xs font-semibold">
+                            <span class="text-slate-500 dark:text-slate-400">Progress</span>
+                            <span id="progress-percent" class="text-brand-600 dark:text-brand-400 font-bold">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-3 shadow-inner">
+                            <div id="progress-bar" class="bg-gradient-to-r from-brand-500 to-brand-300 dark:from-brand-600 dark:to-brand-400 h-3 rounded-full transition-all duration-1000 w-0"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Box Nominal Target -->
+                <div class="glass-card rounded-2xl p-4 flex flex-col justify-center">
+                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1">
+                        <i class="ph-fill ph-flag-checkered text-brand-500 dark:text-brand-400"></i> Nominal Target
+                    </p>
+                    <p id="target-amount-display" class="text-base font-bold text-slate-900 dark:text-white">Rp 0</p>
+                    <p class="text-[10px] text-slate-500 mt-1">Kurang <span id="remaining-amount" class="text-rose-500 dark:text-rose-400 font-semibold">Rp 0</span></p>
+                </div>
+
+                <!-- Box Sisa Waktu -->
+                <div class="glass-card rounded-2xl p-4 flex flex-col justify-center">
+                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1">
+                        <i class="ph-fill ph-hourglass-high text-brand-500 dark:text-brand-400"></i> Sisa Waktu
+                    </p>
+                    <p id="time-remaining" class="text-sm font-bold text-emerald-500 dark:text-emerald-400 leading-tight">Menghitung...</p>
+                    <p class="text-[10px] text-slate-500 mt-1">Hingga <span id="target-date-display" class="text-slate-700 dark:text-slate-300 font-semibold">-</span></p>
+                </div>
+            </div>
+
+            <!-- GRAFIK REAL-TIME: RUPIAH VS HARGA EMAS -->
+            <div class="glass-card rounded-3xl p-5 mt-2">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <i class="ph-fill ph-chart-line-up text-brand-500 dark:text-brand-400"></i> Grafik Tabungan vs Emas
+                    </h3>
+                    <span class="text-[10px] bg-brand-500/10 text-brand-500 px-2 py-0.5 rounded-full font-bold">Real-time</span>
+                </div>
+                <div class="w-full h-48 relative">
+                    <canvas id="savingsChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Form Tambah Saldo (Input Rupiah) -->
+            <div class="glass-card rounded-3xl p-5 mt-2">
+                <form id="savings-form" class="space-y-3">
+                    <div class="flex gap-3">
+                        <div class="relative w-full">
+                            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 text-sm font-bold">Rp</div>
+                            <input type="text" inputmode="numeric" id="input-amount" required placeholder="1.500.000" class="w-full bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-3 py-3 text-slate-900 dark:text-white text-sm font-semibold focus:outline-none focus:border-brand-500 transition">
+                        </div>
+                        <div class="relative w-full">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><i class="ph ph-note"></i></div>
+                            <input type="text" id="input-note" required placeholder="Catatan" class="w-full bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-3 text-slate-900 dark:text-white text-sm focus:outline-none focus:border-brand-500 transition">
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-brand-500 hover:bg-brand-600 dark:hover:bg-brand-400 text-white font-bold text-sm py-3 rounded-xl transition flex items-center justify-center gap-2">
+                        <i class="ph-bold ph-paper-plane-tilt"></i> Simpan Transaksi
+                    </button>
+                </form>
+            </div>
+
+            <!-- Riwayat Transaksi -->
+            <div class="pt-2">
+                <h3 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-3 px-1">
+                    <i class="ph-fill ph-list-dashes text-brand-500 dark:text-brand-400"></i> Mutasi Terakhir
+                </h3>
+                <div id="transaction-list" class="space-y-2.5">
+                    <!-- Data Render -->
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBDqefprvHhLcEC2-H-ZZmrLIGn3yl6mn0",
+            authDomain: "dreams-savers.firebaseapp.com",
+            databaseURL: "https://dreams-savers-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "dreams-savers",
+            storageBucket: "dreams-savers.firebasestorage.app",
+            messagingSenderId: "263257390733",
+            appId: "1:263257390733:web:c72117affbd13d272c2cc4"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.database();
+        let refTransactions, refTarget;
+
+        const htmlElement = document.documentElement;
+        const themeIcon = document.getElementById('theme-icon');
+        
+        if (localStorage.getItem('theme') === 'light') { htmlElement.classList.remove('dark'); themeIcon.className = "ph-fill ph-sun text-lg"; }
+        function toggleTheme() {
+            htmlElement.classList.toggle('dark');
+            if (htmlElement.classList.contains('dark')) { localStorage.setItem('theme', 'dark'); themeIcon.className = "ph-fill ph-moon text-lg"; } 
+            else { localStorage.setItem('theme', 'light'); themeIcon.className = "ph-fill ph-sun text-lg text-amber-500"; }
+            updateChartTheme();
+        }
+
+        const authScreen = document.getElementById('auth-screen');
+        const dashboardScreen = document.getElementById('dashboard-screen');
+
+        let isAppInitialized = false;
+        let savingsChart = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            Swal.fire({
+                title: 'Memuat Brankas...',
+                text: 'Mohon menunggu sebentar',
+                allowOutsideClick: false,
+                background: htmlElement.classList.contains('dark') ? '#1e293b' : '#fff',
+                color: htmlElement.classList.contains('dark') ? '#fff' : '#0f172a',
+                didOpen: () => { Swal.showLoading(); }
+            });
+            initChart();
+        });
+
+        auth.onAuthStateChanged((user) => {
+            Swal.close(); 
+            if (user) {
+                authScreen.classList.add('hidden');
+                dashboardScreen.classList.remove('hidden');
+                
+                refTransactions = db.ref(`users/${user.uid}/tabungan/transaksi`);
+                refTarget = db.ref(`users/${user.uid}/tabungan/target_config`);
+                
+                if(!isAppInitialized) { initApp(); isAppInitialized = true; }
+            } else {
+                authScreen.classList.remove('hidden');
+                authScreen.classList.add('flex');
+                dashboardScreen.classList.add('hidden');
+                isAppInitialized = false;
+            }
+        });
+
+        document.getElementById('login-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value; const pass = document.getElementById('login-pass').value;
+            Swal.fire({ title: 'Memeriksa...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() }, background: htmlElement.classList.contains('dark') ? '#1e293b' : '#fff', color: htmlElement.classList.contains('dark') ? '#fff' : '#0f172a' });
+            auth.signInWithEmailAndPassword(email, pass).then(() => { Swal.close(); }).catch((error) => { Swal.fire({ icon: 'error', title: 'Gagal Login', text: 'Email atau password salah.', background: htmlElement.classList.contains('dark') ? '#1e293b' : '#fff', color: htmlElement.classList.contains('dark') ? '#fff' : '#0f172a' }); });
+        });
+
+        function registerAccount() {
+            const email = document.getElementById('login-email').value; const pass = document.getElementById('login-pass').value;
+            if(!email || !pass) return Swal.fire({ icon: 'warning', title: 'Isi Data', text: 'Ketik email dan password di atas lalu daftar.', background: htmlElement.classList.contains('dark') ? '#1e293b' : '#fff', color: htmlElement.classList.contains('dark') ? '#fff' : '#0f172a' });
+            auth.createUserWithEmailAndPassword(email, pass).then(() => { Swal.fire({ icon: 'success', title: 'Berhasil!', text: 'Akun terdaftar.', background: htmlElement.classList.contains('dark') ? '#1e293b' : '#fff', color: htmlElement.classList.contains('dark') ? '#fff' : '#0f172a' }); }).catch((err) => { Swal.fire({ icon: 'error', title: 'Gagal', text: err.message, background: htmlElement.classList.contains('dark') ? '#1e293b' : '#fff', color: htmlElement.classList.contains('dark') ? '#fff' : '#0f172a' }); });
+        }
+
+        function logout() {
+            Swal.fire({ title: 'Kunci Brankas?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#0ea5e9', cancelButtonColor: '#ef4444', confirmButtonText: 'Ya, Keluar', cancelButtonText: 'Batal', background: htmlElement.classList.contains('dark') ? '#1e293b' : '#fff', color: htmlElement.classList.contains('dark') ? '#fff' : '#0f172a'
+            }).then((result) => { if (result.isConfirmed) auth.signOut(); });
+        }
+
+        let targetAmount = 135000000;
+        let targetDateStr = "2031-12-31";
+        let targetNameStr = "Tabungan Mobil"; 
+        let currentTotalRp = 0;
+        let isVisible = true; 
+        let currentGoldPricePerGram = 1450000; 
+
+        const formatRupiah = (num) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(num);
+        
+        const inputAmountEl = document.getElementById('input-amount');
+        inputAmountEl.addEventListener('input', function(e) {
+            let value = this.value.replace(/[^0-9]/g, '');
+            if(value !== '') { this.value = parseInt(value, 10).toLocaleString('id-ID'); } else { this.value = ''; }
+        });
+
+        const formatTanggal = (timestamp) => {
+            const d = new Date(timestamp);
+            return `${d.toLocaleDateString('id-ID', {day: '2-digit', month: 'short', year: 'numeric'})} • ${d.toLocaleTimeString('id-ID', {hour: '2-digit', minute: '2-digit'})} WIB`;
+        };
+
+        // SETUP GRAFIK CHART.JS
+        function initChart() {
+            const ctx = document.getElementById('savingsChart').getContext('2d');
+            const isDark = htmlElement.classList.contains('dark');
+
+            savingsChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Akumulasi Rupiah (Rp)',
+                            data: [],
+                            borderColor: '#0ea5e9',
+                            backgroundColor: 'rgba(14, 165, 233, 0.1)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.3,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Harga Emas/Gram (Rp)',
+                            data: [],
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            fill: false,
+                            tension: 0.3,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: isDark ? '#94a3b8' : '#475569', font: { size: 10 } }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)' },
+                            ticks: { color: isDark ? '#94a3b8' : '#475569', font: { size: 9 } }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            grid: { color: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)' },
+                            ticks: { color: '#0ea5e9', font: { size: 9 } }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: false, // Disembunyikan agar bersih, skala otomatis mengikuti harga emas
+                            position: 'right',
+                            grid: { drawOnChartArea: false },
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateChartTheme() {
+            if(!savingsChart) return;
+            const isDark = htmlElement.classList.contains('dark');
+            savingsChart.options.plugins.legend.labels.color = isDark ? '#94a3b8' : '#475569';
+            savingsChart.options.scales.x.grid.color = isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
+            savingsChart.options.scales.x.ticks.color = isDark ? '#94a3b8' : '#475569';
+            savingsChart.options.scales.y.grid.color = isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
+            savingsChart.update();
+        }
+
+        function updateChartData(transactions) {
+            if(!savingsChart) return;
+            
+            let labels = [];
+            let rupiahData = [];
+            let goldPriceData = [];
+            let runningTotal = 0;
+
+            if(transactions && transactions.length > 0) {
+                transactions.forEach(item => {
+                    runningTotal += Number(item.amount);
+                    const d = new Date(item.timestamp);
+                    labels.push(d.toLocaleDateString('id-ID', {day: '2-digit', month: 'short'}));
+                    rupiahData.push(runningTotal);
+                    goldPriceData.push(currentGoldPricePerGram);
+                });
+            } else {
+                labels.push('Mulai');
+                rupiahData.push(0);
+                goldPriceData.push(currentGoldPricePerGram);
+            }
+
+            savingsChart.data.labels = labels;
+            savingsChart.data.datasets[0].data = rupiahData;
+            savingsChart.data.datasets[1].data = goldPriceData;
+            savingsChart.update();
+        }
+
+        async function fetchGoldPrice() {
+            try {
+                const response = await fetch('https://logam-mulia-api.vercel.app/prices/hargaemas-com');
+                const data = await response.json();
+                const priceStr = data.data[0].sell; 
+                currentGoldPricePerGram = parseInt(priceStr.replace(/[^0-9]/g, ''));
+                
+                document.getElementById('live-gold-price').innerText = formatRupiah(currentGoldPricePerGram) + "/g";
+                updateUIProgress();
+            } catch (error) {
+                console.log("Gagal API, menggunakan harga emas statis.");
+                document.getElementById('live-gold-price').innerText = formatRupiah(currentGoldPricePerGram) + "/g (Offline)";
+                updateUIProgress();
+            }
+        }
+
+        function hitungSisaWaktu() {
+            const now = new Date(); const target = new Date(targetDateStr);
+            if(target <= now) { document.getElementById('time-remaining').innerText = "Waktu Habis!"; document.getElementById('time-remaining').className = "text-sm font-bold text-rose-500 leading-tight"; return; }
+            let years = target.getFullYear() - now.getFullYear(); let months = target.getMonth() - now.getMonth(); let days = target.getDate() - now.getDate();
+            if (days < 0) { months--; const prevMonth = new Date(target.getFullYear(), target.getMonth(), 0); days += prevMonth.getDate(); }
+            if (months < 0) { years--; months += 12; }
+            let textOutput = []; if(years > 0) textOutput.push(`${years} thn`); if(months > 0) textOutput.push(`${months} bln`); textOutput.push(`${days} hr`);
+            document.getElementById('time-remaining').innerText = textOutput.join(', '); document.getElementById('time-remaining').className = "text-sm font-bold text-emerald-500 leading-tight";
+        }
+
+        function toggleVisibility() {
+            isVisible = !isVisible;
+            const eyeIcon = document.getElementById('eye-icon');
+            const totalEl = document.getElementById('total-saved');
+            if(isVisible) {
+                eyeIcon.className = "ph-fill ph-eye text-xl";
+                totalEl.classList.remove('blur-amount');
+                totalEl.innerText = formatRupiah(currentTotalRp);
+            } else {
+                eyeIcon.className = "ph-fill ph-eye-slash text-xl text-rose-500";
+                totalEl.classList.add('blur-amount');
+                totalEl.innerText = "Rp ••••••••";
+            }
+        }
+
+        function updateUIProgress() {
+            const totalEl = document.getElementById('total-saved');
+            if(isVisible) { totalEl.innerText = formatRupiah(currentTotalRp); }
+            
+            const totalGramVal = (currentTotalRp / currentGoldPricePerGram) || 0;
+            document.getElementById('total-gold-gram').innerText = totalGramVal.toFixed(2) + " g";
+
+            const percentage = Math.min(Math.round((currentTotalRp / targetAmount) * 100), 100);
+            document.getElementById('progress-percent').innerText = `${percentage}%`;
+            document.getElementById('progress-bar').style.width = `${percentage}%`;
+            const remaining = Math.max(targetAmount - currentTotalRp, 0);
+            document.getElementById('remaining-amount').innerText = formatRupiah(remaining);
+        }
+
+        function initApp() {
+            fetchGoldPrice();
+
+            refTarget.on('value', (snap) => {
+                const d = snap.val();
+                if(d) {
+                    if (d.nama) targetNameStr = d.nama;
+                    if (d.nominal) targetAmount = d.nominal;
+                    if (d.deadline) targetDateStr = d.deadline;
+                }
+                
+                document.getElementById('target-title').innerText = targetNameStr;
+                document.getElementById('target-amount-display').innerText = formatRupiah(targetAmount);
+                document.getElementById('target-date-display').innerText = new Date(targetDateStr).toLocaleDateString('id-ID', {month: 'long', year: 'numeric'});
+                
+                hitungSisaWaktu();
+                updateUIProgress();
+            });
+
+            refTransactions.on('value', (snapshot) => {
+                const listElement = document.getElementById('transaction-list');
+                listElement.innerHTML = '';
+                currentTotalRp = 0;
+                let rawItems = [];
+
+                if (snapshot.exists()) {
+                    snapshot.forEach((child) => { rawItems.push({ key: child.key, ...child.val() }); });
+                    
+                    // Urutkan berdasarkan waktu transaksi terlama ke terbaru untuk grafik
+                    rawItems.sort((a, b) => a.timestamp - b.timestamp);
+
+                    let displayItems = [...rawItems].reverse(); // Untuk mutasi terakhir (terbaru di atas)
+                    
+                    displayItems.forEach((item) => {
+                        listElement.innerHTML += `
+                            <div class="glass-card p-3 rounded-2xl flex justify-between items-center group">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-500 dark:bg-emerald-500/20 dark:text-emerald-400 flex items-center justify-center">
+                                        <i class="ph-bold ph-plus"></i>
+                                    </div>
+                                    <div>
+                                        <p class="font-bold text-slate-900 dark:text-white text-[13px]">${item.note}</p>
+                                        <p class="text-[10px] text-slate-500 dark:text-slate-400">${formatTanggal(item.timestamp)}</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-slate-900 dark:text-white text-[13px]">${formatRupiah(item.amount)}</span>
+                                    <button onclick="deleteTransaction('${item.key}')" class="text-slate-400 hover:text-rose-500 p-1 transition opacity-0 group-hover:opacity-100 cursor-pointer">
+                                        <i class="ph-fill ph-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    // Hitung total keseluruhan
+                    currentTotalRp = rawItems.reduce((acc, curr) => acc + Number(curr.amount), 0);
+                    
+                    // Update data ke grafik
+                    updateChartData(rawItems);
+                } else {
+                    listElement.innerHTML = `<p class="text-xs text-slate-500 text-center py-4 glass-card rounded-xl">Belum ada mutasi masuk.</p>`;
+                    updateChartData([]);
+                }
+                updateUIProgress();
+            });
+        }
+
+        document.getElementById('savings-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const rawAmount = document.getElementById('input-amount').value.replace(/\./g, '');
+            const amount = Number(rawAmount);
+            const note = document.getElementById('input-note').value;
+
+            if (amount > 0 && note.trim() !== "") {
+                refTransactions.push({ amount, note, timestamp: firebase.database.ServerValue.TIMESTAMP })
+                .then(() => {
+                    document.getElementById('input-amount').value = '';
+                    document.getElementById('input-note').value = '';
+                    Swal.fire({ icon: 'success', title: 'Tersimpan!', showConfirmButton: false, timer: 1500, background: htmlElement.classList.contains('dark') ? '#1e293b' : '#fff', color: htmlElement.classList.contains('dark') ? '#fff' : '#0f172a' });
+                });
+            }
+        });
+
+        function deleteTransaction(key) {
+            Swal.fire({
+                title: 'Hapus Transaksi?', text: "Data setoran ini akan dihapus permanen!", icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', cancelButtonColor: '#64748b', confirmButtonText: 'Ya, Hapus!', cancelButtonText: 'Batal',
+                background: htmlElement.classList.contains('dark') ? '#1e293b' : '#fff', color: htmlElement.classList.contains('dark') ? '#fff' : '#0f172a'
+            }).then((result) => {
+                if (result.isConfirmed) refTransactions.child(key).remove();
+            });
+        }
+
+        async function editTarget() {
+            const currentFormattedAmount = parseInt(targetAmount).toLocaleString('id-ID');
+            const bgModal = htmlElement.classList.contains('dark') ? '#1e293b' : '#fff';
+            const colorModal = htmlElement.classList.contains('dark') ? '#fff' : '#0f172a';
+            const { value: formValues } = await Swal.fire({
+                title: 'Atur Target',
+                html: `
+                    <div class="text-left space-y-3">
+                        <div><label class="text-xs font-bold ml-1 text-slate-500 dark:text-slate-400">Nama Target</label><input id="swal-input1" class="swal2-input custom-swal-input w-full mx-0 mt-1" value="${document.getElementById('target-title').innerText}"></div>
+                        <div><label class="text-xs font-bold ml-1 text-slate-500 dark:text-slate-400">Nominal (Rp)</label><input id="swal-input2" type="text" inputmode="numeric" class="swal2-input custom-swal-input w-full mx-0 mt-1" value="${currentFormattedAmount}"></div>
+                        <div><label class="text-xs font-bold ml-1 text-slate-500 dark:text-slate-400">Tenggat Waktu</label><input id="swal-input3" type="date" class="swal2-input custom-swal-input w-full mx-0 mt-1" value="${targetDateStr}"></div>
+                    </div>
+                `,
+                focusConfirm: false, background: bgModal, color: colorModal, confirmButtonColor: '#0ea5e9', showCancelButton: true, confirmButtonText: 'Simpan', cancelButtonText: 'Batal',
+                didOpen: () => {
+                    const inputNominal = document.getElementById('swal-input2');
+                    inputNominal.addEventListener('input', function() {
+                        let value = this.value.replace(/[^0-9]/g, '');
+                        if(value !== '') { this.value = parseInt(value, 10).toLocaleString('id-ID'); } else { this.value = ''; }
+                    });
+                },
+                preConfirm: () => {
+                    return [ document.getElementById('swal-input1').value, document.getElementById('swal-input2').value.replace(/\./g, ''), document.getElementById('swal-input3').value ]
+                }
+            });
+
+            if (formValues && formValues[0] && formValues[1] && formValues[2]) {
+                refTarget.set({ nama: formValues[0], nominal: Number(formValues[1]), deadline: formValues[2] })
+                .then(() => { Swal.fire({ icon: 'success', title: 'Diperbarui!', showConfirmButton: false, timer: 1500, background: bgModal, color: colorModal }); });
+            }
+        }
+
+        setInterval(hitungSisaWaktu, 60000);
+    </script>
+</body>
+</html>
